@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>HC Client Materials Report</title>
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --border: #cbd5e1;
+      --text: #0f172a;
+      --muted: #475569;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); }
+    .container { max-width: 520px; margin: 0 auto; background: var(--card); border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    h1 { font-size: 1.2rem; margin: 0 0 4px 0; color: var(--primary); }
+    .subtitle { font-size: 0.85rem; color: var(--muted); margin-bottom: 16px; }
+    .field { margin-bottom: 14px; }
+    label { display: block; font-size: 0.88rem; font-weight: 600; margin-bottom: 5px; }
+    input[type="text"], input[type="date"], input[type="number"], select, textarea {
+      width: 100%; padding: 11px 12px; font-size: 1rem; border: 1px solid var(--border);
+      border-radius: 8px; background: #fff; color: var(--text);
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    .fallback-input { margin-top: 8px; display: none; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 8px; }
+    .badge { background: #ccfbf1; color: var(--primary-dark); padding: 3px 9px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
+    .checklist { border: 1px solid var(--border); border-radius: 8px; max-height: 340px; overflow-y: auto; }
+    .check-item { display: flex; align-items: center; padding: 11px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; user-select: none; }
+    .check-item:last-child { border-bottom: none; }
+    .check-item input[type="checkbox"] { width: 20px; height: 20px; margin-right: 12px; accent-color: var(--primary); flex-shrink: 0; }
+    .check-item span { font-size: 0.95rem; }
+    .qty-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
+    .qty-row label { margin: 0; flex: 1; font-weight: 500; font-size: 0.95rem; }
+    .qty-row input { width: 110px; text-align: right; flex-shrink: 0; }
+    .btn { width: 100%; padding: 13px; font-size: 1rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; margin-top: 12px; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { background: #e2e8f0; color: var(--text); }
+    .error-box { background: #fef2f2; color: var(--danger); padding: 10px 12px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 12px; display: none; }
+    .hidden { display: none; }
+    .status-view { text-align: center; padding: 24px 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>HC Client Materials Report</h1>
+    <div class="subtitle" id="stepIndicator">Step 1 of 2: Job Details & Material Selection</div>
+    <div id="errorBox" class="error-box"></div>
+
+    <div id="loadingView">Loading materials list...</div>
+
+    <!-- STEP 1 -->
+    <div id="step1View" class="hidden">
+      <div class="field">
+        <label for="jobDate">Installation Date</label>
+        <input type="date" id="jobDate" required>
+      </div>
+
+      <div class="field">
+        <label for="clientName">Client Name</label>
+        <input type="text" id="clientName" placeholder="Enter client full name" required>
+      </div>
+
+      <div class="field">
+        <label for="workOrder">Work Order</label>
+        <input type="text" id="workOrder" placeholder="e.g. MTNFTTH1231231" style="text-transform: uppercase;" required>
+      </div>
+
+      <div class="field">
+        <label for="locationSelect">Location</label>
+        <select id="locationSelect" onchange="toggleOther('locationSelect', 'locationOther')"></select>
+        <input type="text" id="locationOther" class="fallback-input" placeholder="Type location name">
+      </div>
+
+      <div class="field">
+        <label for="splicerSelect">Splicer</label>
+        <select id="splicerSelect" onchange="toggleOther('splicerSelect', 'splicerOther')"></select>
+        <input type="text" id="splicerOther" class="fallback-input" placeholder="Type splicer name">
+      </div>
+
+      <div class="field">
+        <label for="riggerSelect">Rigger</label>
+        <select id="riggerSelect" onchange="toggleOther('riggerSelect', 'riggerOther')"></select>
+        <input type="text" id="riggerOther" class="fallback-input" placeholder="Type rigger name">
+      </div>
+
+      <div class="field">
+        <label for="categorySelect">Material Category</label>
+        <select id="categorySelect" onchange="renderChecklist()">
+          <option value="1">Drop Cable Only</option>
+          <option value="2">Drop Cable+JB/FAT/Sub</option>
+          <option value="3">Pole Client</option>
+          <option value="4">All Materials</option>
+        </select>
+      </div>
+
+      <div class="section-header">
+        <label style="margin:0;">Select Materials Used</label>
+        <span class="badge" id="selectedCount">0 selected</span>
+      </div>
+      <div id="checklistContainer" class="checklist"></div>
+
+      <button type="button" class="btn btn-primary" onclick="goToStep2()">Okay — Enter Quantities</button>
+    </div>
+
+    <!-- STEP 2 -->
+    <div id="step2View" class="hidden">
+      <div id="quantitiesContainer"></div>
+
+      <div class="field" style="margin-top: 16px;">
+        <label for="remarks">Remarks (Optional)</label>
+        <textarea id="remarks" rows="3" placeholder="Add any installation notes..."></textarea>
+      </div>
+
+      <button type="button" id="submitBtn" class="btn btn-primary" onclick="handleSubmit()">Submit Report</button>
+      <button type="button" id="backBtn" class="btn btn-secondary" onclick="goToStep1()">← Back to Material Selection</button>
+    </div>
+
+    <!-- SUCCESS VIEW -->
+    <div id="successView" class="status-view hidden">
+      <h2 style="color: var(--primary); margin-top: 0;">Report Submitted</h2>
+      <p id="successMsg" style="color: var(--muted); font-size: 0.95rem;"></p>
+      <button type="button" class="btn btn-primary" onclick="resetForm()">Submit Another Report</button>
+    </div>
+  </div>
+
+  <script>
+    // PASTE YOUR GOOGLE APPS SCRIPT "/exec" WEB APP URL BELOW
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyh4nKWENsieAw6kpbd2dEZQtpvlcBEwGL7W2AzwjQf9UGGSv6fvGisfJtSC0AvWOr0Lw/exec';
+
+    let catalog = { materials: [], technicians: [], locations: [] };
+    const selectedIds = new Set();
+    const quantities = {};
+
+    function setTodayDate() {
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      document.getElementById('jobDate').value = `${yyyy}-${mm}-${dd}`;
+    }
+
+    function showError(msg) {
+      const box = document.getElementById('errorBox');
+      if (!msg) {
+        box.style.display = 'none';
+        box.textContent = '';
+      } else {
+        box.textContent = msg;
+        box.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+
+    function populateDropdown(selectId, items, placeholder) {
+      const select = document.getElementById(selectId);
+      select.innerHTML = '';
+
+      const defaultOpt = document.createElement('option');
+      defaultOpt.value = '';
+      defaultOpt.textContent = `-- Select ${placeholder} --`;
+      select.appendChild(defaultOpt);
+
+      items.forEach(val => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = val;
+        select.appendChild(opt);
+      });
+
+      const otherOpt = document.createElement('option');
+      otherOpt.value = '__OTHER__';
+      otherOpt.textContent = 'Other (Type manually)';
+      select.appendChild(otherOpt);
+    }
+
+    function toggleOther(selectId, inputId) {
+      const sel = document.getElementById(selectId);
+      const inp = document.getElementById(inputId);
+      if (sel.value === '__OTHER__') {
+        inp.style.display = 'block';
+        inp.focus();
+      } else {
+        inp.style.display = 'none';
+      }
+    }
+
+    function getDropdownValue(selectId, inputId) {
+      const sel = document.getElementById(selectId).value;
+      if (sel === '__OTHER__') {
+        return document.getElementById(inputId).value.trim();
+      }
+      return sel.trim();
+    }
+
+    function getCategoryTier(catStr) {
+      const norm = String(catStr || '').toLowerCase().replace(/\s+/g, '');
+      if (norm === 'dropcableonly') return 1;
+      if (norm === 'dropcable+jb/fat/sub') return 2;
+      if (norm === 'poleclient') return 3;
+      return 4;
+    }
+
+    function renderChecklist() {
+      const container = document.getElementById('checklistContainer');
+      container.innerHTML = '';
+      const selectedTier = Number(document.getElementById('categorySelect').value);
+
+      const visibleMaterials = catalog.materials.filter(item => {
+        if (selectedTier === 4) return true;
+        return getCategoryTier(item.category) <= selectedTier;
+      });
+
+      if (visibleMaterials.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.padding = '14px';
+        empty.style.color = '#64748b';
+        empty.textContent = 'No materials found in this category.';
+        container.appendChild(empty);
+        return;
+      }
+
+      visibleMaterials.forEach(item => {
+        const row = document.createElement('label');
+        row.className = 'check-item';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = selectedIds.has(item.id);
+        cb.onchange = () => {
+          if (cb.checked) selectedIds.add(item.id);
+          else selectedIds.delete(item.id);
+          updateBadge();
+        };
+
+        const text = document.createElement('span');
+        text.textContent = item.label;
+
+        row.appendChild(cb);
+        row.appendChild(text);
+        container.appendChild(row);
+      });
+    }
+
+    function updateBadge() {
+      document.getElementById('selectedCount').textContent = `${selectedIds.size} selected`;
+    }
+
+    function goToStep2() {
+      showError('');
+      const dateVal = document.getElementById('jobDate').value;
+      const clientVal = document.getElementById('clientName').value.trim();
+      const woVal = document.getElementById('workOrder').value.trim();
+      const locVal = getDropdownValue('locationSelect', 'locationOther');
+      const splicerVal = getDropdownValue('splicerSelect', 'splicerOther');
+      const riggerVal = getDropdownValue('riggerSelect', 'riggerOther');
+
+      if (!dateVal || !clientVal || !woVal || !locVal || !splicerVal || !riggerVal) {
+        showError('Please fill in Date, Client Name, Work Order, Location, Splicer, and Rigger.');
+        return;
+      }
+      if (selectedIds.size === 0) {
+        showError('Please tick at least one material used on this installation.');
+        return;
+      }
+
+      const qtyContainer = document.getElementById('quantitiesContainer');
+      qtyContainer.innerHTML = '';
+
+      catalog.materials.forEach(item => {
+        if (!selectedIds.has(item.id)) return;
+
+        const row = document.createElement('div');
+        row.className = 'qty-row';
+
+        const lbl = document.createElement('label');
+        lbl.textContent = item.label;
+
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.step = 'any';
+        inp.min = '0.0001';
+        inp.inputMode = 'decimal';
+        inp.placeholder = 'Qty';
+        inp.dataset.matId = item.id;
+        inp.value = quantities[item.id] !== undefined ? quantities[item.id] : '';
+        inp.oninput = () => { quantities[item.id] = inp.value; };
+
+        row.appendChild(lbl);
+        row.appendChild(inp);
+        qtyContainer.appendChild(row);
+      });
+
+      document.getElementById('step1View').classList.add('hidden');
+      document.getElementById('step2View').classList.remove('hidden');
+      document.getElementById('stepIndicator').textContent = 'Step 2 of 2: Enter Quantities & Remarks';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goToStep1() {
+      showError('');
+      document.getElementById('step2View').classList.add('hidden');
+      document.getElementById('step1View').classList.remove('hidden');
+      document.getElementById('stepIndicator').textContent = 'Step 1 of 2: Job Details & Material Selection';
+    }
+
+    async function handleSubmit() {
+      showError('');
+      const inputs = document.querySelectorAll('#quantitiesContainer input');
+      const itemsPayload = [];
+
+      for (let i = 0; i < inputs.length; i++) {
+        const val = inputs[i].value.trim();
+        const num = Number(val);
+        if (val === '' || isNaN(num) || num <= 0) {
+          showError('Please enter a valid positive quantity for every selected material.');
+          inputs[i].focus();
+          return;
+        }
+        const matId = Number(inputs[i].dataset.matId);
+        const matObj = catalog.materials.find(m => m.id === matId);
+        itemsPayload.push({ label: matObj.label, qty: num });
+      }
+
+      const payload = {
+        date: document.getElementById('jobDate').value,
+        clientName: document.getElementById('clientName').value.trim(),
+        workOrder: document.getElementById('workOrder').value.trim().toUpperCase(),
+        location: getDropdownValue('locationSelect', 'locationOther'),
+        splicer: getDropdownValue('splicerSelect', 'splicerOther'),
+        rigger: getDropdownValue('riggerSelect', 'riggerOther'),
+        remarks: document.getElementById('remarks').value.trim(),
+        items: itemsPayload
+      };
+
+      const submitBtn = document.getElementById('submitBtn');
+      const backBtn = document.getElementById('backBtn');
+      submitBtn.disabled = true;
+      backBtn.disabled = true;
+      submitBtn.textContent = 'Submitting Report...';
+
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        const res = await response.json();
+
+        if (!res.success) {
+          throw new Error(res.error || 'Server rejected the submission.');
+        }
+
+        document.getElementById('step2View').classList.add('hidden');
+        document.getElementById('stepIndicator').textContent = 'Completed';
+        const msgEl = document.getElementById('successMsg');
+        if (res.whatsappSent) {
+          msgEl.textContent = 'Saved to Google Sheets and posted to the WhatsApp group.';
+        } else {
+          msgEl.textContent = 'Saved to Google Sheets, but WhatsApp notification failed: ' + res.whatsappError;
+        }
+        document.getElementById('successView').classList.remove('hidden');
+      } catch (err) {
+        showError('Submission failed: ' + err.message);
+      } finally {
+        submitBtn.disabled = false;
+        backBtn.disabled = false;
+        submitBtn.textContent = 'Submit Report';
+      }
+    }
+
+    function resetForm() {
+      selectedIds.clear();
+      Object.keys(quantities).forEach(k => delete quantities[k]);
+      setTodayDate();
+      document.getElementById('clientName').value = '';
+      document.getElementById('workOrder').value = '';
+      document.getElementById('remarks').value = '';
+      ['locationSelect', 'splicerSelect', 'riggerSelect'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+      ['locationOther', 'splicerOther', 'riggerOther'].forEach(id => {
+        const el = document.getElementById(id);
+        el.value = '';
+        el.style.display = 'none';
+      });
+      updateBadge();
+      renderChecklist();
+      document.getElementById('successView').classList.add('hidden');
+      document.getElementById('step1View').classList.remove('hidden');
+      document.getElementById('stepIndicator').textContent = 'Step 1 of 2: Job Details & Material Selection';
+    }
+
+    window.onload = async function() {
+      setTodayDate();
+      if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes('PASTE_YOUR')) {
+        document.getElementById('loadingView').classList.add('hidden');
+        showError('Please paste your Apps Script /exec URL into APPS_SCRIPT_URL inside index.html.');
+        return;
+      }
+
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: 'GET',
+          redirect: 'follow',
+          credentials: 'omit'
+        });
+        const json = await response.json();
+        if (!json.success) {
+          throw new Error(json.error || 'Unknown backend error.');
+        }
+
+        catalog = json.data;
+        populateDropdown('locationSelect', catalog.locations, 'Location');
+        populateDropdown('splicerSelect', catalog.technicians, 'Splicer');
+        populateDropdown('riggerSelect', catalog.technicians, 'Rigger');
+
+        const hasTier1 = catalog.materials.some(m => getCategoryTier(m.category) === 1);
+        document.getElementById('categorySelect').value = hasTier1 ? '1' : '4';
+
+        renderChecklist();
+        document.getElementById('loadingView').classList.add('hidden');
+        document.getElementById('step1View').classList.remove('hidden');
+      } catch (err) {
+        document.getElementById('loadingView').classList.add('hidden');
+        showError('Could not load Materials Template: ' + err.message);
+      }
+    };
+  </script>
+</body>
+</html>
