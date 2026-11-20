@@ -15,6 +15,7 @@
       --text: #0f172a;
       --muted: #475569;
       --danger: #b91c1c;
+      --ok: #15803d;
     }
     * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { margin: 0; padding: 12px; background: var(--bg); color: var(--text); }
@@ -29,6 +30,9 @@
       border-radius: 8px; background: #fff; color: var(--text);
     }
     input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    .wo-hint { font-size: 0.78rem; margin-top: 5px; color: var(--muted); }
+    .wo-hint.valid { color: var(--ok); font-weight: 600; }
+    .wo-hint.invalid { color: var(--danger); }
     .fallback-input { margin-top: 8px; display: none; }
     .section-header { display: flex; justify-content: space-between; align-items: center; margin: 18px 0 8px; }
     .badge { background: #ccfbf1; color: var(--primary-dark); padding: 3px 9px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; }
@@ -39,7 +43,7 @@
     .check-item span { font-size: 0.95rem; }
     .qty-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; }
     .qty-row label { margin: 0; flex: 1; font-weight: 500; font-size: 0.95rem; }
-    .qty-row input, .qty-row select { width: 110px; text-align: right; flex-shrink: 0; }
+    .qty-row input { width: 110px; text-align: right; flex-shrink: 0; }
     .sn-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin: 4px 0 10px 0; }
     .sn-input-group { display: flex; gap: 8px; align-items: center; }
     .sn-input-group input { flex: 1; text-transform: uppercase; font-family: monospace; letter-spacing: 0.5px; }
@@ -81,7 +85,8 @@
 
       <div class="field">
         <label for="workOrder">Work Order <span class="req">*</span></label>
-        <input type="text" id="workOrder" placeholder="e.g. MTNFTTH12345678" style="text-transform: uppercase;" onblur="this.value = this.value.trim().toUpperCase()" required>
+        <input type="text" id="workOrder" placeholder="RITM or MTNFTT..." style="text-transform: uppercase;" oninput="handleWorkOrderInput(this)" required>
+        <div id="woHint" class="wo-hint">Starts with RITM (11 chars) or MTNFTT (15 chars)</div>
       </div>
 
       <div class="field">
@@ -156,7 +161,7 @@
 
   <script>
     // PASTE YOUR GOOGLE APPS SCRIPT "/exec" WEB APP URL BELOW
-    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyh4nKWENsieAw6kpbd2dEZQtpvlcBEwGL7W2AzwjQf9UGGSv6fvGisfJtSC0AvWOr0Lw/exec';
+    const APPS_SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
 
     let catalog = { materials: [], technicians: [], locations: [] };
     const selectedIds = new Set();
@@ -182,6 +187,70 @@
         box.style.display = 'block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+    }
+
+    function cleanWorkOrderString(raw) {
+      return String(raw || '')
+        .replace(/[\s\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF*_~`]+/g, '')
+        .toUpperCase();
+    }
+
+    function handleWorkOrderInput(el) {
+      let val = cleanWorkOrderString(el.value);
+
+      if (val.startsWith('RITM')) {
+        val = val.slice(0, 11);
+      } else if (val.startsWith('MTNFTT')) {
+        val = val.slice(0, 15);
+      } else {
+        val = val.slice(0, 15);
+      }
+      el.value = val;
+
+      const hint = document.getElementById('woHint');
+      hint.className = 'wo-hint';
+
+      if (!val) {
+        hint.textContent = 'Starts with RITM (11 chars) or MTNFTT (15 chars)';
+        return;
+      }
+
+      if (/[^A-Z0-9]/.test(val)) {
+        hint.className = 'wo-hint invalid';
+        hint.textContent = 'Use letters and numbers only (no symbols or punctuation).';
+        return;
+      }
+
+      if (val.startsWith('RITM')) {
+        if (val.length === 11) {
+          hint.className = 'wo-hint valid';
+          hint.textContent = 'Valid RITM Work Order (11/11 characters)';
+        } else {
+          hint.textContent = `RITM Work Order: ${val.length}/11 characters`;
+        }
+        return;
+      }
+
+      if (val.startsWith('MTNFTT')) {
+        if (val.length === 15) {
+          hint.className = 'wo-hint valid';
+          hint.textContent = 'Valid MTNFTT Work Order (15/15 characters)';
+        } else {
+          hint.textContent = `MTNFTT Work Order: ${val.length}/15 characters`;
+        }
+        return;
+      }
+
+      if ('RITM'.startsWith(val) || 'MTNFTT'.startsWith(val)) {
+        hint.textContent = 'Continue typing RITM or MTNFTT prefix...';
+      } else {
+        hint.className = 'wo-hint invalid';
+        hint.textContent = 'Must start with RITM (11 chars) or MTNFTT (15 chars).';
+      }
+    }
+
+    function isValidWorkOrder(val) {
+      return /^(RITM[A-Z0-9]{7}|MTNFTT[A-Z0-9]{9})$/.test(val);
     }
 
     function populateDropdown(selectId, items, placeholder) {
@@ -280,19 +349,26 @@
 
     function cleanSerialString(raw) {
       return String(raw || '')
-        .trim()
+        .replace(/[\s\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]+/g, '')
         .toUpperCase()
-        .replace(/^SN[:\s-]*/i, '')
-        .replace(/\s+/g, '');
+        .replace(/^SN[:\-]*/i, '');
     }
 
     function goToStep2() {
       showError('');
       const clientVal = document.getElementById('clientName').value.trim();
-      const woVal = document.getElementById('workOrder').value.trim();
+      const woInput = document.getElementById('workOrder');
+      handleWorkOrderInput(woInput);
+      const woVal = woInput.value;
 
       if (!clientVal || !woVal) {
         showError('Client Name and Work Order are mandatory before proceeding.');
+        return;
+      }
+
+      if (!isValidWorkOrder(woVal)) {
+        showError('Work Order must start with RITM (11 characters total) or MTNFTT (15 characters total) using letters and numbers only.');
+        woInput.focus();
         return;
       }
 
@@ -319,27 +395,26 @@
         lbl.textContent = item.label;
         row.appendChild(lbl);
 
-        if (item.isRouter) {
-          const sel = document.createElement('select');
-          sel.dataset.matId = item.id;
-          sel.dataset.isRouter = 'true';
-          ['1', '0'].forEach(v => {
-            const opt = document.createElement('option');
-            opt.value = v;
-            opt.textContent = v;
-            sel.appendChild(opt);
-          });
-          const savedVal = quantities[item.id] !== undefined ? String(quantities[item.id]) : '1';
-          sel.value = (savedVal === '0' || savedVal === '1') ? savedVal : '1';
-          quantities[item.id] = sel.value;
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.step = 'any';
+        inp.min = '0.0001';
+        inp.inputMode = 'decimal';
+        inp.placeholder = 'Qty';
+        inp.dataset.matId = item.id;
+        inp.value = quantities[item.id] !== undefined ? quantities[item.id] : '';
+        inp.oninput = () => { quantities[item.id] = inp.value; };
+        row.appendChild(inp);
+        wrapper.appendChild(row);
 
+        if (item.isRouter) {
           const snBox = document.createElement('div');
-          snBox.className = 'sn-box' + (sel.value === '0' ? ' hidden' : '');
+          snBox.className = 'sn-box';
           snBox.id = 'routerSnBox';
 
           const snLabel = document.createElement('label');
           snLabel.htmlFor = 'routerSnInput';
-          snLabel.textContent = 'Router Serial Number (Optional — 16 chars)';
+          snLabel.textContent = 'Serial Number';
 
           const snGroup = document.createElement('div');
           snGroup.className = 'sn-input-group';
@@ -348,7 +423,7 @@
           snInput.type = 'text';
           snInput.id = 'routerSnInput';
           snInput.maxLength = 20;
-          snInput.placeholder = '48575443DF77F2B7';
+          snInput.placeholder = '4857544123456789';
           snInput.value = routerSerial;
           snInput.oninput = () => {
             routerSerial = cleanSerialString(snInput.value);
@@ -375,28 +450,7 @@
           snBox.appendChild(snLabel);
           snBox.appendChild(snGroup);
           snBox.appendChild(snHint);
-
-          sel.onchange = () => {
-            quantities[item.id] = sel.value;
-            if (sel.value === '1') snBox.classList.remove('hidden');
-            else snBox.classList.add('hidden');
-          };
-
-          row.appendChild(sel);
-          wrapper.appendChild(row);
           wrapper.appendChild(snBox);
-        } else {
-          const inp = document.createElement('input');
-          inp.type = 'number';
-          inp.step = 'any';
-          inp.min = '0.0001';
-          inp.inputMode = 'decimal';
-          inp.placeholder = 'Qty';
-          inp.dataset.matId = item.id;
-          inp.value = quantities[item.id] !== undefined ? quantities[item.id] : '';
-          inp.oninput = () => { quantities[item.id] = inp.value; };
-          row.appendChild(inp);
-          wrapper.appendChild(row);
         }
 
         qtyContainer.appendChild(wrapper);
@@ -520,24 +574,16 @@
         const val = el.value.trim();
         const num = Number(val);
 
-        if (matObj.isRouter) {
-          if (val !== '0' && val !== '1') {
-            showError('Router quantity must be 1 or 0.');
-            el.focus();
-            return;
-          }
-          if (num === 1) {
-            routerUsed = true;
-            itemsPayload.push({ label: matObj.label, qty: 1, isRouter: true });
-          }
-        } else {
-          if (val === '' || isNaN(num) || num <= 0) {
-            showError('Please enter a valid positive quantity for ' + matObj.label + '.');
-            el.focus();
-            return;
-          }
-          itemsPayload.push({ label: matObj.label, qty: num, isRouter: false });
+        if (val === '' || isNaN(num) || num <= 0) {
+          showError('Please enter a valid positive quantity for ' + matObj.label + '.');
+          el.focus();
+          return;
         }
+
+        if (matObj.isRouter) {
+          routerUsed = true;
+        }
+        itemsPayload.push({ label: matObj.label, qty: num, isRouter: matObj.isRouter });
       }
 
       let finalSn = '';
@@ -546,16 +592,22 @@
         finalSn = cleanSerialString(snInput.value);
         snInput.value = finalSn;
         if (finalSn !== '' && !/^[A-Z0-9]{16}$/.test(finalSn)) {
-          showError('Router Serial Number must be 16 alphanumeric characters (e.g. 48575443DF77F2B7), or left blank.');
+          showError('Serial Number must be 16 alphanumeric characters (e.g. 4857544123456789), or left blank.');
           snInput.focus();
           return;
         }
       }
 
+      const woVal = cleanWorkOrderString(document.getElementById('workOrder').value);
+      if (!isValidWorkOrder(woVal)) {
+        showError('Work Order must start with RITM (11 chars) or MTNFTT (15 chars).');
+        return;
+      }
+
       const payload = {
         date: document.getElementById('jobDate').value.trim(),
         clientName: document.getElementById('clientName').value.trim(),
-        workOrder: document.getElementById('workOrder').value.replace(/[\r\n]+/g, ' ').trim().toUpperCase(),
+        workOrder: woVal,
         location: getDropdownValue('locationSelect', 'locationOther'),
         splicer: getDropdownValue('splicerSelect', 'splicerOther'),
         rigger: getDropdownValue('riggerSelect', 'riggerOther'),
@@ -608,7 +660,9 @@
       routerSerial = '';
       setTodayDate();
       document.getElementById('clientName').value = '';
-      document.getElementById('workOrder').value = '';
+      const woEl = document.getElementById('workOrder');
+      woEl.value = '';
+      handleWorkOrderInput(woEl);
       document.getElementById('remarks').value = '';
       ['locationSelect', 'splicerSelect', 'riggerSelect'].forEach(id => {
         document.getElementById(id).value = '';
