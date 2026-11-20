@@ -86,7 +86,7 @@
       <div class="field">
         <label for="workOrder">Work Order <span class="req">*</span></label>
         <input type="text" id="workOrder" placeholder="RITM or MTNFTT..." style="text-transform: uppercase;" oninput="handleWorkOrderInput(this)" required>
-        <div id="woHint" class="wo-hint">Starts with RITM (11 chars) or MTNFTT (15 chars)</div>
+        <div id="woHint" class="wo-hint">Starts with RITM or MTNFTT</div>
       </div>
 
       <div class="field">
@@ -108,7 +108,7 @@
       </div>
 
       <div class="field">
-        <label for="categorySelect">Installation Category</label>
+        <label for="categorySelect">Filter by Installation Type</label>
         <select id="categorySelect" onchange="renderChecklist()">
           <option value="1">Drop Cable Only</option>
           <option value="2">Drop Cable+JB/FAT/Sub</option>
