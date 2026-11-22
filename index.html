@@ -98,7 +98,7 @@
       </div>
 
       <div class="field">
-        <label for="splicerSelect">Splicer</label>
+        <label for="splicerSelect">Splicer <span class="req">*</span></label>
         <select id="splicerSelect" onchange="toggleOther('splicerSelect', 'splicerOther')"></select>
         <input type="text" id="splicerOther" class="fallback-input" placeholder="Type splicer name">
       </div>
@@ -363,8 +363,8 @@
       handleWorkOrderInput(woInput);
       const woVal = woInput.value;
 
-      if (!clientVal || !woVal) {
-        showError('Client Name and Work Order are mandatory before proceeding.');
+      if (!clientVal || !woVal || !getDropdownValue('splicerSelect', 'splicerOther')) {
+        showError('Client Name, Work Order, and Splicer are mandatory before proceeding.');
         return;
       }
 
