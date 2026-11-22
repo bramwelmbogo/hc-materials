@@ -30,6 +30,8 @@
       border-radius: 8px; background: #fff; color: var(--text);
     }
     input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); border-color: transparent; }
+    input[readonly] { background: #f1f5f9; color: var(--muted); cursor: not-allowed; }
+    input[readonly]:focus { outline: none; border-color: var(--border); }
     .wo-hint { font-size: 0.78rem; margin-top: 5px; color: var(--muted); }
     .wo-hint.valid { color: var(--ok); font-weight: 600; }
     .wo-hint.invalid { color: var(--danger); }
@@ -372,20 +374,20 @@
         return;
       }
 
+      const isRitm = woVal.startsWith('RITM');
       const qtyContainer = document.getElementById('quantitiesContainer');
       qtyContainer.innerHTML = '';
 
-      if (selectedIds.size === 0) {
-        const note = document.createElement('p');
-        note.style.color = '#475569';
-        note.style.fontSize = '0.9rem';
-        note.textContent = 'No materials were selected. You can submit job details only or go back to tick materials.';
-        qtyContainer.appendChild(note);
-      }
+      let renderedCount = 0;
+      let snRendered = false;
 
       catalog.materials.forEach(item => {
-        if (!selectedIds.has(item.id)) return;
+        const isSelected = selectedIds.has(item.id);
+        const isForcedZeroRouter = !isSelected && item.isRouter && isRitm;
 
+        if (!isSelected && !isForcedZeroRouter) return;
+
+        renderedCount++;
         const wrapper = document.createElement('div');
 
         const row = document.createElement('div');
@@ -397,17 +399,27 @@
 
         const inp = document.createElement('input');
         inp.type = 'number';
-        inp.step = 'any';
-        inp.min = '0.0001';
-        inp.inputMode = 'decimal';
-        inp.placeholder = 'Qty';
         inp.dataset.matId = item.id;
-        inp.value = quantities[item.id] !== undefined ? quantities[item.id] : '';
-        inp.oninput = () => { quantities[item.id] = inp.value; };
+
+        if (isForcedZeroRouter) {
+          inp.value = '0';
+          inp.readOnly = true;
+          inp.tabIndex = -1;
+          inp.dataset.forcedZero = 'true';
+        } else {
+          inp.step = 'any';
+          inp.min = '0.0001';
+          inp.inputMode = 'decimal';
+          inp.placeholder = 'Qty';
+          inp.value = quantities[item.id] !== undefined ? quantities[item.id] : '';
+          inp.oninput = () => { quantities[item.id] = inp.value; };
+        }
+
         row.appendChild(inp);
         wrapper.appendChild(row);
 
-        if (item.isRouter) {
+        if (item.isRouter && !snRendered) {
+          snRendered = true;
           const snBox = document.createElement('div');
           snBox.className = 'sn-box';
           snBox.id = 'routerSnBox';
@@ -455,6 +467,14 @@
 
         qtyContainer.appendChild(wrapper);
       });
+
+      if (renderedCount === 0) {
+        const note = document.createElement('p');
+        note.style.color = '#475569';
+        note.style.fontSize = '0.9rem';
+        note.textContent = 'No materials were selected. You can submit job details only or go back to tick materials.';
+        qtyContainer.appendChild(note);
+      }
 
       document.getElementById('step1View').classList.add('hidden');
       document.getElementById('step2View').classList.remove('hidden');
@@ -565,12 +585,20 @@
       showError('');
       const controls = document.querySelectorAll('#quantitiesContainer [data-mat-id]');
       const itemsPayload = [];
-      let routerUsed = false;
+      let snVisible = false;
 
       for (let i = 0; i < controls.length; i++) {
         const el = controls[i];
         const matId = Number(el.dataset.matId);
         const matObj = catalog.materials.find(m => m.id === matId);
+        const isForcedZero = el.dataset.forcedZero === 'true';
+
+        if (isForcedZero) {
+          snVisible = true;
+          itemsPayload.push({ label: matObj.label, qty: 0, isRouter: matObj.isRouter });
+          continue;
+        }
+
         const val = el.value.trim();
         const num = Number(val);
 
@@ -581,14 +609,14 @@
         }
 
         if (matObj.isRouter) {
-          routerUsed = true;
+          snVisible = true;
         }
         itemsPayload.push({ label: matObj.label, qty: num, isRouter: matObj.isRouter });
       }
 
       let finalSn = '';
       const snInput = document.getElementById('routerSnInput');
-      if (routerUsed && snInput) {
+      if (snVisible && snInput) {
         finalSn = cleanSerialString(snInput.value);
         snInput.value = finalSn;
         if (finalSn !== '' && !/^[A-Z0-9]{16}$/.test(finalSn)) {
